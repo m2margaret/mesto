@@ -92,9 +92,13 @@ function invalidInput(inputList) {
     })
   }
 
-const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/;
+const imageUrlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i;
 
 export function isValidUrl(input) {
-    return urlRegex.test(input.value);
+    const isUrlValid = /^(https?:\/\/)/i.test(input.value);
+
+    const isImage = imageUrlRegex.test(input.value);
+
+    return isUrlValid && isImage;
 }
 
