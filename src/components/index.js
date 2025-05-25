@@ -150,6 +150,13 @@ function isLoading(evt, text) {
 function handleCardFormSubmit(evt) {
     evt.preventDefault();
     isLoading(evt, 'Сохранение...');
+
+    const isAccessible = await isImageAccessible(url);
+    if (!isAccessible) {
+        alert('Изображение по ссылке не найдено или недоступно!');
+        return;
+    }
+
     addCard(cardNameInput.value, cardLinkInput.value)
         .then((card) => {
             showCard(createCard(card, userInfo));
