@@ -17,12 +17,26 @@ function handleOverlayClick(evt) {
     }
   }
 
-export function openModal(popup){
+export function openModal(popup) {
     fillProfileForm();
     popup.classList.add('popup_is-opened');
     document.addEventListener('keydown', handleEscapeKey);
     popup.addEventListener('mousedown', handleOverlayClick);
-  }
+
+    const form = popup.querySelector('.popup__form');
+    if (form) {
+        form.reset();
+
+        const submitButton = form.querySelector('.popup__button');
+        if (submitButton) {
+            const inputList = Array.from(form.querySelectorAll('.popup__input'));
+            toggleButtonState(inputList, submitButton, {
+                inactiveButtonClass: 'popup__button_disabled',
+                inputErrorClass: 'popup__input_invalid'
+            });
+        }
+    }
+}
 
 export function closeModal(popup){
     popup.classList.remove('popup_is-opened');

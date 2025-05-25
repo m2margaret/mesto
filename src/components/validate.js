@@ -92,12 +92,9 @@ function invalidInput(inputList) {
     })
   }
 
-  export function isValidUrl(url) {
-    try {
-      const parsedUrl = new URL(url);
-      return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
-    } catch (e) {
-      return false;
-    }
-  }
+const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/;
+
+export function isValidUrl(input) {
+    return urlRegex.test(input.value);
+}
 
