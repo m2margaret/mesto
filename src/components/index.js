@@ -7,7 +7,8 @@ import { createCard, showCard } from './card.js';
 //Импорт функций из modal
 import { openModal, closeModal } from './modal.js';
 
-import { enableValidation, removeValidation, toggleButtonState, isValidUrl } from './validate.js';
+import { enableValidation, removeValidation, toggleButtonState, isValidUrl as validateUrlFormat, hasInvalidInput } from './validate.js';
+
 
 // DOM узлы
 // Пользователь
@@ -18,7 +19,7 @@ const profileAvatar = document.querySelector('.profile__image');
 const profileEditButton = document.querySelector('.profile__edit-button');
 const profilePopup = document.querySelector('.popup_type_edit');
 
-//Кнопки закрытия попатов
+//Кнопки закрытия попапов
 const closeButtons = document.querySelectorAll('.popup__close');
 
 // Кнопка добавления карточки
@@ -31,7 +32,7 @@ const editProfilePopup = document.querySelector('.popup_type_update-profile');
 const editProfileButton = document.querySelector('.profile__avatar-button');
 const avatarLinkInput = editProfilePopup.querySelector('.popup__input_type_url');
 
-let userInfo
+let userInfo;
 
 const preloader = document.querySelector('.preloader');
 
@@ -44,8 +45,26 @@ const newPlaceForm = document.forms['new-place'];
 const editAvatarForm = document.forms['update-profile'];
 const cardNameInput = newPlaceForm.elements['place-name'];
 const cardLinkInput = newPlaceForm.elements.link;
-const submitButton = profilePopup.querySelector('.popup__button');
 
+// Кнопки "Сохранить" для каждой формы
+const submitButtonProfile = editProfileForm.querySelector('.popup__button');
+const submitButtonCard = newPlaceForm.querySelector('.popup__button');
+const submitButtonAvatar = editAvatarForm.querySelector('.popup__button');
+
+
+// Функция для асинхронной проверки доступности изображения по URL
+async function isImageAccessible(url) {
+    return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => {
+            resolve(true); // Изображение успешно загружено
+        };
+        img.onerror = () => {
+            resolve(false); // Произошла ошибка при загрузке изображения
+        };
+        img.src = url;
+    });
+}
 
 // Отрисовка информации о пользователе
 function renderUserInfo(userData) {
@@ -54,43 +73,43 @@ function renderUserInfo(userData) {
     profileAvatar.src = userData.avatar;
     userInfo = userData;
 }
-// Начальная загрузка 
-Promise.all([getCards(), getUser()])
-    .then(([cardsInfo, userInfo]) => {
 
-        renderUserInfo(userInfo)
+// Начальная загрузка
+Promise.all([getCards(), getUser()])
+    .then(([cardsInfo, userInfoData]) => { // Изменил имя переменной userInfo на userInfoData, чтобы избежать конфликта с глобальной userInfo
+        renderUserInfo(userInfoData);
         cardsInfo.reverse().forEach(card => {
-            showCard(createCard(card, userInfo))
+            showCard(createCard(card, userInfoData));
             preloader.classList.add('preloader_hidden');
         });
     })
     .catch((err) => {
-        console.log(`Ошибка ${err}`);
-    })
+        console.log(`Ошибка: ${err}`);
+    });
 
-//Слушатели на попапы
+// Слушатели на попапы
 profileEditButton.addEventListener('click', () => {
     openModal(profilePopup);
-    const inputList = Array.from(editProfileForm.querySelectorAll(validationConfig.inputSelector));
-    toggleButtonState(inputList, submitButton);
+    fillProfileForm(); // Заполняем форму данными пользователя
 });
 
 addCardButton.addEventListener('click', () => {
     openModal(cardPopup);
+    newPlaceForm.reset(); // Сбрасываем форму новой карточки при открытии, если хотите чистое поле
 });
 
 editProfileButton.addEventListener('click', () => {
     openModal(editProfilePopup);
-})
+});
 
-// Закрытие попатов
+// Закрытие попапов
 closeButtons.forEach((button) => {
     const popup = button.closest('.popup');
     button.addEventListener('click', () => {
         closeModal(popup);
-        removeValidation(validationConfig);
-    })
-})
+    });
+});
+
 // Заполнение профиля информацией
 export function fillProfileForm() {
     nameInput.value = profileTitle.textContent.trim();
@@ -102,73 +121,106 @@ export const validationConfig = {
     inputSelector: '.popup__input',
     submitButtonSelector: '.popup__button',
     inactiveButtonClass: 'popup__button_disabled',
-    inputErrorClass: '.popup__input_invalid',
+    inputErrorClass: 'popup__input_invalid',
     errorClass: 'popup__error_visible'
-}
+};
 
-enableValidation(validationConfig)
+enableValidation(validationConfig); // Вызываем функцию валидации
 
-// Назначение обработчиков
-profilePopup.addEventListener('submit', handleProfileFormSubmit);
-cardPopup.addEventListener('submit', handleCardFormSubmit);
-editProfilePopup.addEventListener('submit', handleAvatarSubmit);
+// Назначение обработчиков для форм
+editProfileForm.addEventListener('submit', handleProfileFormSubmit);
+newPlaceForm.addEventListener('submit', handleCardFormSubmit);
+editAvatarForm.addEventListener('submit', handleAvatarSubmit);
 
 function handleProfileFormSubmit(evt) {
     evt.preventDefault();
-    isLoading(evt, 'Сохранение...');
-    editProfile(`${nameInput.value}`, `${descriptionInput.value}`, evt)
+    isLoading(submitButtonProfile, 'Сохранение...'); // Передаем конкретную кнопку
+    editProfile(nameInput.value, descriptionInput.value)
         .then((res) => {
             renderUserInfo(res);
             closeModal(profilePopup);
         })
-        .catch((res) => {
-            console.log(`Ошибка при обновлении информации о пользователе: ${res.status}`)
+        .catch((err) => {
+            console.log(`Ошибка при обновлении информации о пользователе: ${err.status}`);
         })
         .finally(() => {
-            isLoading(evt, 'Сохранить')
-        })
+            isLoading(submitButtonProfile, 'Сохранить'); // Передаем конкретную кнопку
+        });
 }
 
-function handleAvatarSubmit(evt) {
+async function handleAvatarSubmit(evt) {
     evt.preventDefault();
-    isLoading(evt, 'Сохранение...');
-    updateAvatar(avatarLinkInput.value, evt)
+    isLoading(submitButtonAvatar, 'Сохранение...'); // Передаем конкретную кнопку
+
+    const url = avatarLinkInput.value;
+
+    // 1. Предварительная проверка формата URL
+    if (!validateUrlFormat(url)) {
+        alert('Некорректный формат URL изображения. Пожалуйста, используйте действительную ссылку.');
+        isLoading(submitButtonAvatar, 'Сохранить');
+        return;
+    }
+
+    // 2. Проверка доступности изображения
+    const isAccessible = await isImageAccessible(url);
+    if (!isAccessible) {
+        alert('Изображение по ссылке не найдено или недоступно!');
+        isLoading(submitButtonAvatar, 'Сохранить');
+        return;
+    }
+
+    // Если обе проверки пройдены
+    updateAvatar(url)
         .then((res) => {
             renderUserInfo(res);
-            editAvatarForm.reset();
             closeModal(editProfilePopup);
         })
         .catch(() => console.log('Ошибка при обновлении аватара'))
         .finally(() => {
-            isLoading(evt, 'Сохранить')
-        })
+            isLoading(submitButtonAvatar, 'Сохранить'); // Передаем конкретную кнопку
+        });
 }
-function isLoading(evt, text) {
-    const button = evt.target.querySelector('.popup__button');
-    button.textContent = text;
-}
-function handleCardFormSubmit(evt) {
-    evt.preventDefault();
-    isLoading(evt, 'Сохранение...');
 
-    const isAccessible = await isImageAccessible(url);
-    if (!isAccessible) {
-        alert('Изображение по ссылке не найдено или недоступно!');
+function isLoading(button, text) {
+    if (button) {
+        button.textContent = text;
+    }
+}
+
+async function handleCardFormSubmit(evt) {
+    evt.preventDefault();
+    isLoading(submitButtonCard, 'Сохранение...'); // Передаем конкретную кнопку
+
+    const url = cardLinkInput.value;
+
+    // 1. Предварительная проверка формата URL
+    if (!validateUrlFormat(url)) {
+        alert('Некорректный формат URL изображения. Пожалуйста, используйте действительную ссылку.');
+        isLoading(submitButtonCard, 'Сохранить');
         return;
     }
 
-    addCard(cardNameInput.value, cardLinkInput.value)
+    // 2. Проверка доступности изображения
+    const isAccessible = await isImageAccessible(url);
+    if (!isAccessible) {
+        alert('Изображение по ссылке не найдено или недоступно!');
+        isLoading(submitButtonCard, 'Сохранить');
+        return;
+    }
+
+    // Если обе проверки пройдены
+    addCard(cardNameInput.value, url)
         .then((card) => {
             showCard(createCard(card, userInfo));
-            newPlaceForm.reset();
+            newPlaceForm.reset(); // Сбрасываем форму добавления карточки после успешного сохранения
             closeModal(cardPopup);
         })
-        .catch((res) => {
-            console.log(`Ошибка при добавлении новой карточки: ${res.status}`)
+        .catch((err) => {
+            console.log(`Ошибка при добавлении новой карточки: ${err.status}`);
         })
         .finally(() => {
-            isLoading(evt, 'Сохранить')
-        })
+            isLoading(submitButtonCard, 'Сохранить'); // Передаем конкретную кнопку
+        });
 }
 
 export function clickImage(cardLink, cardName) {

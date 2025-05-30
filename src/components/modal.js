@@ -1,5 +1,5 @@
-import { fillProfileForm, validationConfig } from "./index.js";
-import { removeValidation, toggleButtonState } from "./validate.js";
+import { validationConfig } from "./index.js";
+import { removeValidation } from "./validate.js";
 
 function handleOverlayClick(evt) {
     if (evt.target === evt.currentTarget) {
@@ -18,15 +18,24 @@ function handleEscapeKey(evt) {
 }
 
 export function openModal(popup) {
-    fillProfileForm();
     popup.classList.add('popup_is-opened');
     document.addEventListener('keydown', handleEscapeKey);
     popup.addEventListener('mousedown', handleOverlayClick);
+
+    const formElement = popup.querySelector(validationConfig.formSelector);
+    if (formElement) {
+        const inputList = Array.from(formElement.querySelectorAll(validationConfig.inputSelector));
+        const buttonElement = formElement.querySelector(validationConfig.submitButtonSelector);
+
+        removeValidation(popup, validationConfig);
+
+        buttonElement.classList.add(validationConfig.inactiveButtonClass);
+        buttonElement.setAttribute('disabled', true);
+    }
 }
 
 export function closeModal(popup) {
     popup.classList.remove('popup_is-opened');
     document.removeEventListener('keydown', handleEscapeKey);
     popup.removeEventListener('mousedown', handleOverlayClick);
-    removeValidation(validationConfig);
 }
